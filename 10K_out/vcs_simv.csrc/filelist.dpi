@@ -1,0 +1,4 @@
+DPI_STUB_OBJS += ./../vcs_simv.daidir/vc_hdrs.o
+./../vcs_simv.daidir/vc_hdrs.o: ./../vcs_simv.daidir/vc_hdrs.c
+	@$(CC) -I/google/data/ro/teams/edatools/synopsys/vcs/2020.03-SP1//include  -pipe -DVCSMX -DUVM_DPI_DO_TYPE_CHECK -fPIC    -I/google/data/ro/teams/edatools/synopsys/vcs/2020.03-SP1/include  -fPIC -c -o ./../vcs_simv.daidir/vc_hdrs.o ./../vcs_simv.daidir/vc_hdrs.c
+	@strip -g ./../vcs_simv.daidir/vc_hdrs.o

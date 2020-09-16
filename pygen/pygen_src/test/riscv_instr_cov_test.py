@@ -17,6 +17,8 @@ import sys
 import vsc
 import argparse
 import csv
+import time
+
 from tabulate import *
 sys.path.append("pygen/")
 from pygen_src.isa.riscv_cov_instr import riscv_cov_instr
@@ -39,6 +41,14 @@ class riscv_instr_cov_test:
                             format="%(filename)s %(lineno)s %(levelname)s %(message)s",
                             level=logging.DEBUG)
 
+        self.begin_parse = 0
+        self.end_parse = 0
+        self.total_parsing_time = 0
+
+        self.begin_sample = 0
+        self.end_sample = 0
+        self.total_sampling_time = 0
+
     def run_phase(self):
         self.csv_trace = self.argv.trace_csv.split(",")
         if not self.csv_trace:
@@ -55,6 +65,7 @@ class riscv_instr_cov_test:
                 line_count = 0
                 # Get the header line
                 for row in csv_reader:
+                    self.begin_parse = time.perf_counter()
                     if line_count == 0:
                         header = row
                         logging.info("Header: {}".format(header))
@@ -103,10 +114,19 @@ class riscv_instr_cov_test:
             logging.error("{} instruction skipped, {} illegal "
                           "instructions".format(self.skipped_cnt,
                                                 self.unexpected_illegal_instr_cnt))
+        file3 = open("timing", "a")
+        file3.write("Parsing CSV files and creating instruction objects took {}\n".format(
+            self.total_parsing_time))
+        file3.write("Sampling the instructions took {}\n".format(
+            self.total_sampling_time))
+        file3.close()
         self.get_coverage_report()
 
     def get_coverage_report(self):
+        begin_textual_report = time.perf_counter()
+        begin_get_model = time.perf_counter()
         model = vsc.get_coverage_report_model()
+        end_get_model = time.perf_counter()
         cov_dir = self.argv.log_file_name.split("/")[0]
         file = open('{}/CoverageReport.txt'.format(cov_dir), 'w')
         file.write("Groups Coverage Summary\n")
@@ -114,14 +134,31 @@ class riscv_instr_cov_test:
             len(model.covergroups)))
         headers = ["SCORE", "WEIGHT", "NAME"]
         table = []
+        begin_printing = time.perf_counter()
         for cg in model.covergroups:
             table.append([cg.coverage, cg.weight, cg.name])
         file.write(tabulate(table, headers, tablefmt="grid",
                             numalign="center", stralign="center"))
         file.close()
+        end_printing = time.perf_counter()
+        end_textual_report = time.perf_counter()
+        file1 = open("timing", "a") 
+        file1.write("get model took {}\n".format(
+            end_get_model - begin_get_model))
+        file1.write("printing took {}\n".format(
+            end_printing - begin_printing))
+        file1.write("Textual_coverage_report (get model + printing) took {}\n".format(
+            end_textual_report - begin_textual_report))
+        file1.close()
         # If enabled, write in xml format to be read by pyucis-viewer (visualization)
         if self.argv.enable_visualization:
+            file1 = open("timing", "a")
+            begin_visual_report = time.perf_counter()
             vsc.write_coverage_db("{}/cov_db.xml".format(cov_dir))
+            end_visual_report = time.perf_counter()
+            file1.write("visualized_coverage_report (generating XML file) took {}\n".format(
+                end_visual_report - begin_visual_report))
+            file1.close()
 
     def post_process_trace(self):
         pass
@@ -151,8 +188,13 @@ class riscv_instr_cov_test:
                                           "RV64M", "RV64C", "RV32F", "RV64F",
                                           "RV32D", "RV64D", "RV32B", "RV64B"]:
                 self.assign_trace_info_to_instr(instruction)
+                self.end_parse = time.perf_counter()
+                self.total_parsing_time += (self.end_parse - self.begin_parse)
+                self.begin_sample = time.perf_counter()
                 instruction.pre_sample()
                 self.instr_cg.sample(instruction)
+                self.end_sample = time.perf_counter()
+                self.total_sampling_time += (self.end_sample - self.begin_sample)
             return True
         logging.info("Cannot find opcode: {}".format(processed_instr_name))
         return False

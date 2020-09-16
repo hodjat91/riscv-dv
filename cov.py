@@ -21,6 +21,7 @@ import os
 import re
 import sys
 import logging
+import time
 
 from scripts.lib import *
 from scripts.spike_log_to_trace_csv import *
@@ -154,6 +155,7 @@ def collect_cov(out, cfg, cwd):
         if not argv.debug:
             logging.error("Cannot find {} directory, or it is empty".format(argv.dir))
             sys.exit(RET_FAIL)
+    begin_csv_creation = time.perf_counter()
     if argv.core:
         """If functional coverage is being collected from an RTL core 
         implementation, the flow assumes that the core's trace logs have 
@@ -191,6 +193,10 @@ def collect_cov(out, cfg, cwd):
                     logging.error(
                         "Full trace for {} is not supported yet".format(argv.iss))
                     sys.exit(RET_FAIL)
+    end_csv_creation = time.perf_counter()
+    file2 = open("timing", "a")
+    file2.write("Conversion to CSV took {}\n".format(end_csv_creation - begin_csv_creation))
+    file2.close()
     if argv.steps == "all" or re.match("cov", argv.steps):
         opts_vec = ""
         opts_cov = ""
@@ -204,7 +210,13 @@ def collect_cov(out, cfg, cwd):
         if argv.simulator != "pyflow":
             build_cov(out, cfg, cwd, opts_vec, opts_cov)
         # Simulation the coverage collection
+        begin_sim_cov = time.perf_counter()
         sim_cov(out, cfg, cwd, opts_vec, opts_cov, csv_list)
+        end_sim_cov = time.perf_counter()
+        file2 = open("timing", "a")
+        file2.write("Building the functional coverage collection framework took {}\n".format(
+            end_sim_cov - begin_sim_cov))
+        file2.close()
 
 
 def setup_parser():
@@ -323,6 +335,7 @@ def load_config(args, cwd):
 def main():
     """This is the main entry point."""
     try:
+        main_start = time.perf_counter()
         parser = setup_parser()
         args = parser.parse_args()
         cwd = os.path.dirname(os.path.realpath(__file__))
@@ -334,11 +347,15 @@ def main():
         # Collect coverage for the trace CSV
         collect_cov(output_dir, cfg, cwd)
         logging.info("Coverage results are saved to {}".format(output_dir))
+        main_end = time.perf_counter()
+        file1 = open("timing", "a")
+        file1.write("Main function (conversion to CSV + building the functional coverage collection framework) took {}\n".format(main_end-main_start))
+        file1.close()
         sys.exit(RET_SUCCESS)
     except KeyboardInterrupt:
         logging.info("\nExited Ctrl-C from user request.")
         sys.exit(130)
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__": 
+    main() 
